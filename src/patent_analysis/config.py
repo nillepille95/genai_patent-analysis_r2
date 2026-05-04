@@ -35,6 +35,14 @@ class AnalysisConfig:
 
 
 @dataclass(slots=True)
+class ExtractionConfig:
+    enable_ai_patent_extraction: bool
+    ai_patent_sections: tuple[str, ...]
+    fallback_to_rules: bool
+    max_ai_features_per_section: int
+
+
+@dataclass(slots=True)
 class OpenRouterConfig:
     enabled: bool
     api_key: str
@@ -58,6 +66,7 @@ class Settings:
     app: AppConfig
     database: DatabaseConfig
     analysis: AnalysisConfig
+    extraction: ExtractionConfig
     openrouter: OpenRouterConfig
     sources: SourcesConfig
     config_path: Path
@@ -93,6 +102,7 @@ def load_settings(explicit_path: str | Path | None = None) -> Settings:
     app_payload = payload.get("app", {})
     database_payload = payload.get("database", {})
     analysis_payload = payload.get("analysis", {})
+    extraction_payload = payload.get("extraction", {})
     openrouter_payload = payload.get("openrouter", {})
     sources_payload = payload.get("sources", {})
 
@@ -130,6 +140,22 @@ def load_settings(explicit_path: str | Path | None = None) -> Settings:
             max_feature_matches=int(analysis_payload.get("max_feature_matches", 6)),
             canonical_terms=canonical_terms,
         ),
+        extraction=ExtractionConfig(
+            enable_ai_patent_extraction=bool(
+                extraction_payload.get("enable_ai_patent_extraction", False)
+            ),
+            ai_patent_sections=tuple(
+                section.strip().lower()
+                for section in extraction_payload.get(
+                    "ai_patent_sections", ["claims", "description"]
+                )
+                if isinstance(section, str) and section.strip()
+            ),
+            fallback_to_rules=bool(extraction_payload.get("fallback_to_rules", True)),
+            max_ai_features_per_section=int(
+                extraction_payload.get("max_ai_features_per_section", 8)
+            ),
+        ),
         openrouter=OpenRouterConfig(
             enabled=bool(openrouter_payload.get("enabled", False)),
             api_key=openrouter_payload.get("api_key", "").strip(),
@@ -153,4 +179,3 @@ def load_settings(explicit_path: str | Path | None = None) -> Settings:
             ),
         ),
     )
-

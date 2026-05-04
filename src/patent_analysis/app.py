@@ -43,8 +43,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     repository = PatentAnalysisRepository(settings.database.path)
     normalizer = TextNormalizer(settings.analysis.canonical_terms)
-    extractor = FeatureExtractor(settings, normalizer)
     llm_client = OpenRouterClient(settings.openrouter)
+    extractor = FeatureExtractor(settings, normalizer, llm_client)
     services = ServiceContainer(
         settings=settings,
         repository=repository,

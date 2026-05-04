@@ -95,6 +95,42 @@ class OpenRouterClient:
         }
         return self._post_chat_completion(payload)
 
+    def generate_json(
+        self,
+        schema_name: str,
+        schema: dict,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.1,
+    ) -> dict | list | None:
+        payload = {
+            "model": self.config.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": temperature,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": schema_name,
+                    "strict": True,
+                    "schema": schema,
+                },
+            },
+            "plugins": [{"id": "response-healing"}],
+            "stream": False,
+        }
+        content = self._post_chat_completion(payload)
+        if not content:
+            return None
+
+        try:
+            return json.loads(self._extract_json_string(content))
+        except json.JSONDecodeError as exc:
+            self.last_error = f"Could not parse structured JSON: {exc}"
+            return None
+
     def generate_suggestions(self, prompt: str) -> list[SuggestionCandidate]:
         content = self.generate_text(
             system_prompt=(

@@ -265,9 +265,11 @@ class PatentAnalysisRepository:
                             raw_feature_text,
                             normalized_feature,
                             confidence,
-                            evidence_span
+                            evidence_span,
+                            extraction_method,
+                            extraction_notes
                         )
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             patent_id,
@@ -276,6 +278,8 @@ class PatentAnalysisRepository:
                             feature.normalized_feature,
                             feature.confidence,
                             feature.evidence_span,
+                            feature.extraction_method,
+                            feature.extraction_notes,
                         ),
                     )
 
@@ -306,9 +310,11 @@ class PatentAnalysisRepository:
                         raw_feature_text,
                         normalized_feature,
                         confidence,
-                        evidence_span
+                        evidence_span,
+                        extraction_method,
+                        extraction_notes
                     )
-                    VALUES (?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         design_id,
@@ -316,10 +322,58 @@ class PatentAnalysisRepository:
                         feature.normalized_feature,
                         feature.confidence,
                         feature.evidence_span,
+                        feature.extraction_method,
+                        feature.extraction_notes,
                     ),
                 )
 
         return design_id
+
+    def replace_patent_features(
+        self, patent_id: int, extracted_features_by_section: dict[str, list[FeatureCandidate]]
+    ) -> int:
+        with self.connection() as connection:
+            section_rows = connection.execute(
+                "SELECT id, section_type FROM patent_sections WHERE patent_id = ?",
+                (patent_id,),
+            ).fetchall()
+            section_ids = {str(row["section_type"]): int(row["id"]) for row in section_rows}
+            connection.execute("DELETE FROM extracted_features WHERE patent_id = ?", (patent_id,))
+
+            inserted_count = 0
+            for section_type, features in extracted_features_by_section.items():
+                section_id = section_ids.get(section_type)
+                if section_id is None:
+                    continue
+                for feature in features:
+                    connection.execute(
+                        """
+                        INSERT INTO extracted_features (
+                            patent_id,
+                            section_id,
+                            raw_feature_text,
+                            normalized_feature,
+                            confidence,
+                            evidence_span,
+                            extraction_method,
+                            extraction_notes
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            patent_id,
+                            section_id,
+                            feature.raw_feature_text,
+                            feature.normalized_feature,
+                            feature.confidence,
+                            feature.evidence_span,
+                            feature.extraction_method,
+                            feature.extraction_notes,
+                        ),
+                    )
+                    inserted_count += 1
+
+        return inserted_count
 
     def create_risk_assessment(
         self,
@@ -477,4 +531,3 @@ class PatentAnalysisRepository:
                 """
             ).fetchone()
         return self._row_to_dict(row)
-

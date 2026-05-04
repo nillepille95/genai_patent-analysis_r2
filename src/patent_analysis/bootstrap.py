@@ -13,7 +13,7 @@ def import_patent_document(
     document: PatentDocumentInput,
 ) -> int:
     extracted_features_by_section = {
-        section_type: extractor.extract_section_features(section_text, section_type)
+        section_type: extractor.extract_patent_section_features(section_text, section_type)
         for section_type, section_text in document.sections.items()
         if section_text.strip()
     }
@@ -48,4 +48,3 @@ def bootstrap_demo_data(
     if settings.app.auto_seed_demo and repository.count_product_designs() == 0:
         for design in bundle.product_designs:
             import_product_design(repository, extractor, design)
-

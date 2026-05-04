@@ -14,8 +14,8 @@ This repository now contains the first working scaffold for the Fuyao patent ana
 - `FastAPI`: lightweight Python web framework for local development and later private deployment.
 - `Jinja2` templates: simple server-rendered frontend that runs well on localhost and can be hosted behind a private reverse proxy later.
 - `SQLite` now: fast, file-based prototype database with a clean path to PostgreSQL later.
-- Rule-based extraction and scoring first: deterministic, explainable, and easy to validate before turning on LLM-assisted refinement.
-- Optional `OpenRouter` integration: configuration exists now, but the application still works offline with rule-based fallbacks.
+- Rule-based extraction and scoring remain available as a fallback path for stability and explainability.
+- `OpenRouter` integration is now live for AI-assisted patent feature extraction and design-around suggestions when enabled in local config.
 
 ## Project structure
 
@@ -53,12 +53,16 @@ python main.py              # run the web app
 python main.py runserver    # run the web app explicitly
 python main.py init-db      # create the SQLite schema
 python main.py seed-demo    # load demo patents and demo designs
+python main.py test-openrouter
+python main.py test-patent-extraction
+python main.py reextract-patents
 python -m unittest discover -s tests
 ```
 
 ## Current demo scope
 
 - Text-based patent ingestion via the UI
+- AI-assisted patent feature extraction for claims and descriptions when enabled
 - Synthetic automotive glazing patents for development and evaluation
 - Product design comparison with transparent scoring logic
 - Structured design-around suggestions from detected overlaps
@@ -66,8 +70,8 @@ python -m unittest discover -s tests
 
 ## Next recommended steps
 
-1. Validate the extraction logic on a few real patent texts from the partner.
-2. Decide whether Phase 1 normalization should remain rule-based or use OpenRouter-assisted extraction.
+1. Validate AI-assisted extraction quality on a few real partner-approved patent texts.
+2. Add manual accept/edit workflows for extracted features in the review UI.
 3. Add one real live data adapter, for example a watched folder of partner-approved patent exports.
 4. Replace SQLite with PostgreSQL when multi-user deployment becomes necessary.
 

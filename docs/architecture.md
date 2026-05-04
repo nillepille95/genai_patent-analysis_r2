@@ -14,6 +14,7 @@ The first implementation slice intentionally covers the must-have flow from the 
 8. Produce an explainable risk score and design-around suggestions.
 
 That keeps the first usable version aligned with Phase 1 and Phase 2 while leaving extension points for Phase 3 and Phase 4.
+The current revision now uses AI-assisted extraction for patent claims and descriptions when enabled, with a deterministic fallback path when the model is unavailable or returns unusable output.
 
 ## 2. Chosen libraries
 
@@ -41,14 +42,10 @@ That keeps the first usable version aligned with Phase 1 and Phase 2 while leavi
 
 ### AI integration
 
-- Rule-based extraction and scoring first
-  - More predictable and auditable for an academic prototype.
-  - Easier to debug than a full LLM-first pipeline.
-
-- Optional `OpenRouter` client
-  - Wired in through config now.
-  - Used as an enhancement path for richer design-around suggestions later.
-  - The app still runs when no API key is configured.
+- Hybrid extraction strategy
+  - OpenRouter can perform structured patent feature extraction and richer design-around generation.
+  - The rule-based extractor remains in place as a deterministic fallback and baseline.
+  - This keeps the prototype usable even when the model is unavailable or a response is malformed.
 
 ## 3. Module layout
 
@@ -72,7 +69,9 @@ That keeps the first usable version aligned with Phase 1 and Phase 2 while leavi
   - Shared token cleanup and canonical term normalization.
 
 - `services/extraction.py`
-  - Heuristic feature extraction from claims, descriptions, and product text.
+  - Hybrid feature extraction service.
+  - Uses OpenRouter structured JSON extraction for patent claims and descriptions when enabled.
+  - Falls back to heuristic extraction when needed.
 
 - `services/risk.py`
   - Patent-to-product comparison and explainable scoring.
@@ -84,7 +83,7 @@ That keeps the first usable version aligned with Phase 1 and Phase 2 while leavi
   - Early multi-patent theme and whitespace summary.
 
 - `services/llm.py`
-  - Small optional OpenRouter client.
+  - Optional OpenRouter client with live connectivity checks and structured JSON support.
 
 ### Data source adapters
 
@@ -144,6 +143,8 @@ The SQLite schema mirrors the requirements:
 - `feature_matches`
 - `design_suggestions`
 - `innovation_insights`
+
+Feature rows now also record extraction metadata so reviewers can see whether a feature came from the AI-assisted path or the rule-based fallback.
 
 This is intentionally close to the requirement document so we keep traceability between the written specification and the implementation.
 

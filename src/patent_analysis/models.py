@@ -9,6 +9,8 @@ class FeatureCandidate:
     normalized_feature: str
     confidence: float
     evidence_span: str
+    extraction_method: str = "rule"
+    extraction_notes: str = ""
 
 
 @dataclass(slots=True)
@@ -57,4 +59,3 @@ class InnovationInsightCandidate:
 class SourceBundle:
     patents: list[PatentDocumentInput] = field(default_factory=list)
     product_designs: list[ProductDesignInput] = field(default_factory=list)
-

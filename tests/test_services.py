@@ -17,6 +17,19 @@ from patent_analysis.services.normalization import TextNormalizer
 from patent_analysis.services.risk import RiskAnalyzer
 
 
+class FakeOpenRouterClient:
+    def __init__(self, payload):
+        self.payload = payload
+        self.config = type("Config", (), {"model": "fake-openrouter-model"})()
+        self.last_error = ""
+
+    def is_configured(self):
+        return True
+
+    def generate_json(self, **kwargs):
+        return self.payload
+
+
 class ServiceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -86,6 +99,50 @@ class ServiceTests(unittest.TestCase):
         self.assertGreaterEqual(result["risk_score"], 65.0)
         self.assertEqual(result["risk_level"], "High")
         self.assertGreaterEqual(len(result["matches"]), 2)
+
+    def test_ai_patent_extraction_prefers_llm_when_enabled(self):
+        settings = load_settings()
+        settings.extraction.enable_ai_patent_extraction = True
+        settings.extraction.ai_patent_sections = ("claims",)
+        normalizer = TextNormalizer(settings.analysis.canonical_terms)
+        fake_llm = FakeOpenRouterClient(
+            {
+                "features": [
+                    {
+                        "raw_feature_text": "transparent conductive heating layer adjacent to the polymer interlayer",
+                        "evidence_span": "transparent conductive heating layer embedded adjacent to the polymer interlayer",
+                        "confidence": 0.91,
+                    }
+                ]
+            }
+        )
+        extractor = FeatureExtractor(settings, normalizer, fake_llm)
+
+        features = extractor.extract_patent_section_features(
+            "1. A laminated vehicle windshield comprising a transparent conductive heating layer embedded adjacent to the polymer interlayer.",
+            "claims",
+        )
+
+        self.assertEqual(len(features), 1)
+        self.assertEqual(features[0].extraction_method, "openrouter")
+        self.assertIn("fake-openrouter-model", features[0].extraction_notes)
+
+    def test_ai_patent_extraction_falls_back_to_rules(self):
+        settings = load_settings()
+        settings.extraction.enable_ai_patent_extraction = True
+        settings.extraction.ai_patent_sections = ("claims",)
+        settings.extraction.fallback_to_rules = True
+        normalizer = TextNormalizer(settings.analysis.canonical_terms)
+        fake_llm = FakeOpenRouterClient({"features": []})
+        extractor = FeatureExtractor(settings, normalizer, fake_llm)
+
+        features = extractor.extract_patent_section_features(
+            "1. A windshield sensor mounting assembly comprising a sensor mounting pad fixed to an inner glass surface.",
+            "claims",
+        )
+
+        self.assertGreaterEqual(len(features), 1)
+        self.assertTrue(any(feature.extraction_method == "rule" for feature in features))
 
     def test_innovation_service_reports_theme_gaps(self):
         patents_with_features = [

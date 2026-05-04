@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS extracted_features (
     normalized_feature TEXT NOT NULL,
     confidence REAL NOT NULL,
     evidence_span TEXT NOT NULL,
+    extraction_method TEXT NOT NULL DEFAULT 'rule',
+    extraction_notes TEXT NOT NULL DEFAULT '',
     FOREIGN KEY(patent_id) REFERENCES patents(id) ON DELETE CASCADE,
     FOREIGN KEY(section_id) REFERENCES patent_sections(id) ON DELETE CASCADE
 );
@@ -58,6 +60,8 @@ CREATE TABLE IF NOT EXISTS product_features (
     normalized_feature TEXT NOT NULL,
     confidence REAL NOT NULL,
     evidence_span TEXT NOT NULL,
+    extraction_method TEXT NOT NULL DEFAULT 'rule',
+    extraction_notes TEXT NOT NULL DEFAULT '',
     FOREIGN KEY(product_design_id) REFERENCES product_designs(id) ON DELETE CASCADE
 );
 
@@ -113,6 +117,17 @@ CREATE TABLE IF NOT EXISTS innovation_insights (
 );
 """
 
+MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "extracted_features": [
+        ("extraction_method", "TEXT NOT NULL DEFAULT 'rule'"),
+        ("extraction_notes", "TEXT NOT NULL DEFAULT ''"),
+    ],
+    "product_features": [
+        ("extraction_method", "TEXT NOT NULL DEFAULT 'rule'"),
+        ("extraction_notes", "TEXT NOT NULL DEFAULT ''"),
+    ],
+}
+
 
 def get_connection(database_path: Path) -> sqlite3.Connection:
     connection = sqlite3.connect(database_path)
@@ -125,5 +140,15 @@ def initialize_database(database_path: Path) -> None:
     database_path.parent.mkdir(parents=True, exist_ok=True)
     with get_connection(database_path) as connection:
         connection.executescript(SCHEMA)
+        for table_name, column_specs in MIGRATIONS.items():
+            existing_columns = {
+                row["name"]
+                for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()
+            }
+            for column_name, column_spec in column_specs:
+                if column_name in existing_columns:
+                    continue
+                connection.execute(
+                    f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_spec}"
+                )
         connection.commit()
-

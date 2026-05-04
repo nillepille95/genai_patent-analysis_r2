@@ -16,6 +16,12 @@ medium_risk_threshold = 35.0
 high_risk_threshold = 65.0
 max_feature_matches = 6
 
+[extraction]
+enable_ai_patent_extraction = false
+ai_patent_sections = ["claims", "description"]
+fallback_to_rules = true
+max_ai_features_per_section = 8
+
 [[analysis.canonical_terms]]
 canonical = "conductive heating layer"
 variants = ["transparent conductive layer", "conductive mesh", "heating mesh", "electrical heating layer"]

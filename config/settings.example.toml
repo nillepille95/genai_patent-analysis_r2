@@ -42,7 +42,7 @@ variants = ["ir reflective coating", "heat reflective coating", "infrared coatin
 
 [openrouter]
 enabled = false
-api_key = ""
+api_key = "replace-with-your-openrouter-api-key"
 model = "replace-with-openrouter-model-id"
 base_url = "https://openrouter.ai/api/v1/chat/completions"
 site_url = "http://localhost:8000"
@@ -53,4 +53,3 @@ request_timeout_seconds = 30
 demo_patents_path = "data/demo_patents.json"
 demo_designs_path = "data/demo_designs.json"
 live_patent_directory = "data/live_patents"
-

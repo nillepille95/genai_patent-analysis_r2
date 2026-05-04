@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+import ssl
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -11,6 +13,15 @@ from ..models import SuggestionCandidate
 class OpenRouterClient:
     def __init__(self, config: OpenRouterConfig):
         self.config = config
+        self.last_error = ""
+
+    @staticmethod
+    def _build_ssl_context():
+        try:
+            import certifi
+        except ImportError:
+            return None
+        return ssl.create_default_context(cafile=certifi.where())
 
     def is_configured(self) -> bool:
         return (
@@ -21,25 +32,19 @@ class OpenRouterClient:
             and "replace-with" not in self.config.model.lower()
         )
 
-    def generate_suggestions(self, prompt: str) -> list[SuggestionCandidate]:
-        if not self.is_configured():
-            return []
+    def _extract_json_string(self, content: str) -> str:
+        stripped = content.strip()
+        if stripped.startswith("```"):
+            match = re.search(r"```(?:json)?\s*(.*?)\s*```", stripped, flags=re.DOTALL)
+            if match:
+                return match.group(1).strip()
+        return stripped
 
-        payload = {
-            "model": self.config.model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "You generate structured patent design-around suggestions. "
-                        "Return only a JSON array with up to three objects. "
-                        "Each object must contain suggestion_text, rationale, and feasibility_note."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.2,
-        }
+    def _post_chat_completion(self, payload: dict) -> str:
+        if not self.is_configured():
+            self.last_error = "OpenRouter is not configured."
+            return ""
+
         request = Request(
             self.config.base_url,
             data=json.dumps(payload).encode("utf-8"),
@@ -53,16 +58,60 @@ class OpenRouterClient:
         )
 
         try:
-            with urlopen(request, timeout=self.config.request_timeout_seconds) as response:
+            ssl_context = self._build_ssl_context()
+            urlopen_kwargs = {"timeout": self.config.request_timeout_seconds}
+            if ssl_context is not None:
+                urlopen_kwargs["context"] = ssl_context
+            with urlopen(request, **urlopen_kwargs) as response:
                 raw_response = response.read().decode("utf-8")
-        except (HTTPError, URLError, TimeoutError):
+        except HTTPError as exc:
+            error_body = ""
+            if exc.fp is not None:
+                error_body = exc.fp.read().decode("utf-8", errors="ignore")
+            self.last_error = f"HTTP {exc.code}: {error_body or exc.reason}"
+            return ""
+        except (URLError, TimeoutError) as exc:
+            self.last_error = str(exc)
+            return ""
+
+        try:
+            parsed_payload = json.loads(raw_response)
+            content = parsed_payload["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+            self.last_error = f"Unexpected response format: {exc}"
+            return ""
+
+        self.last_error = ""
+        return str(content)
+
+    def generate_text(self, system_prompt: str, user_prompt: str, temperature: float = 0.2) -> str:
+        payload = {
+            "model": self.config.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": temperature,
+        }
+        return self._post_chat_completion(payload)
+
+    def generate_suggestions(self, prompt: str) -> list[SuggestionCandidate]:
+        content = self.generate_text(
+            system_prompt=(
+                "You generate structured patent design-around suggestions. "
+                "Return only a JSON array with up to three objects. "
+                "Each object must contain suggestion_text, rationale, and feasibility_note."
+            ),
+            user_prompt=prompt,
+            temperature=0.2,
+        )
+        if not content:
             return []
 
         try:
-            payload = json.loads(raw_response)
-            content = payload["choices"][0]["message"]["content"]
-            suggestions = json.loads(content)
-        except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+            suggestions = json.loads(self._extract_json_string(content))
+        except json.JSONDecodeError as exc:
+            self.last_error = f"Could not parse suggestion JSON: {exc}"
             return []
 
         results: list[SuggestionCandidate] = []
@@ -82,4 +131,3 @@ class OpenRouterClient:
                 )
             )
         return results[:3]
-
